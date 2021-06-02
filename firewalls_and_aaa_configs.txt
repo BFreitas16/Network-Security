@@ -1,0 +1,692 @@
+----------------------------------------- General Configs & Connectivity -----------------------------------------
+Firewall:
+conf t 
+int f0/0
+no shut
+ip address 2.2.2.1 255.255.255.0
+exit
+int f1/0
+no shut
+ip address 10.0.1.1 255.255.255.0
+exit
+int f2/0
+no shut
+ip address 10.0.2.1 255.255.255.0
+exit
+int f3/0
+no shut
+ip address 1.1.1.1 255.255.255.0
+exit
+int f1/0
+ip nat inside
+exit
+int f2/0
+ip nat inside
+exit
+access-list 1 permit 10.0.0.0 0.0.2.255
+ip nat inside source list 1 interface f1/0 overload
+ip nat inside source list 1 interface f2/0 overload
+int f3/0
+ip nat outside
+ip domain-name firewall
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+username saar secret saar
+line vty 0 4
+login local
+transport input ssh
+end
+write
+
+WebServer:
+service nginx start
+(ip configurado pelo gns3)
+
+SMTP Server: 
+ifconfig eth0 2.2.2.3 netmask 255.255.255.0 up
+route add default gw 2.2.2.1
+
+PC1: 
+ifconfig eth0 10.0.1.2 netmask 255.255.255.0 up
+route add default gw 10.0.1.1
+
+PC2:
+ip 10.0.2.2/24 10.0.2.1
+ip dns 1.1.1.2
+save
+
+DNS-1:
+nano /etc/hosts
+2.2.2.2 saar.lab saar
+nano /etc/network/interfaces
+iface eth0 inet static
+address 1.1.1.2
+netmask 255.255.255.0
+gateway 1.1.1.1
+
+
+-------------------------------------- SMTP SCRIPTS -----------------------------------------
+smtp_req.py:
+import smtplib
+import email.utils
+from email.mime.text import MIMEText
+
+# Create the message
+msg = MIMEText('This is the body of the message.')
+msg['To'] = email.utils.formataddr(('Recipient', 'recipient@example.com'))
+msg['From'] = email.utils.formataddr(('Author', 'author@example.com'))
+msg['Subject'] = 'Simple test message'
+
+server = smtplib.SMTP('2.2.2.2', 25)
+server.set_debuglevel(True) # show communication with the server
+try:
+    server.sendmail('author@example.com', ['recipient@example.com'], msg.as_string())
+finally:
+    server.quit()
+
+
+smtp_resp.py:
+import smtpd
+import asyncore
+
+class CustomSMTPServer(smtpd.SMTPServer):
+    
+    def process_message(self, peer, mailfrom, rcpttos, data):
+        print 'Receiving message from:', peer
+        print 'Message addressed from:', mailfrom
+        print 'Message addressed to  :', rcpttos
+        print 'Message length        :', len(data)
+        return
+
+server = CustomSMTPServer(('2.2.2.3', 25), None)
+
+asyncore.loop()
+
+
+-------------------------------------- Classical Firewall --------------------------------------
+
+sh ip access-lists
+sh access-list
+sh ip inspect sessions
+no access-list IN_PRIVATES
+
+no ip access-list extended IN_PRIVATES
+ip access-list extended IN_PRIVATES
+permit tcp 10.0.0.0 0.0.3.255 host 10.0.1.1 eq 22 
+deny ip any 10.0.0.0 0.0.3.255
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.2 eq 80
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.2 eq 443
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.3 eq pop3
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.3 eq 993
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.3 eq smtp
+permit icmp 10.0.0.0 0.0.3.255 host 2.2.2.2
+permit icmp 10.0.0.0 0.0.3.255 host 2.2.2.3
+deny ip 10.0.0.0 0.0.3.255 2.2.2.0 0.0.0.255
+permit udp 10.0.0.0 0.0.3.255 any eq 53
+permit tcp 10.0.0.0 0.0.3.255 any eq 80
+permit tcp 10.0.0.0 0.0.3.255 any eq 443
+permit icmp 10.0.0.0 0.0.3.255 any 
+deny ip any any
+exit
+
+no ip access-list extended OUT_PRIVATES
+ip access-list extended OUT_PRIVATES
+deny ip any any
+exit
+
+no ip access-list extended IN_DMZ
+ip access-list extended IN_DMZ
+permit udp 2.2.2.0 0.0.0.3 1.1.1.0 0.0.0.255 eq 53
+permit tcp 2.2.2.0 0.0.0.3 1.1.1.0 0.0.0.255 eq smtp
+permit icmp 2.2.2.0 0.0.0.3 1.1.1.0 0.0.0.255 
+permit tcp any host 2.2.2.1 eq 22
+deny ip any any
+exit
+
+no ip access-list extended OUT_DMZ
+ip access-list extended OUT_DMZ
+permit tcp 10.0.0.0 0.0.3.255 2.2.2.0 0.0.0.3 eq 993
+permit tcp 10.0.0.0 0.0.3.255 2.2.2.0 0.0.0.3 eq pop3
+permit tcp any 2.2.2.0 0.0.0.3 eq 80
+permit tcp any 2.2.2.0 0.0.0.3 eq 443
+permit tcp any 2.2.2.0 0.0.0.3 eq smtp
+permit icmp any 2.2.2.0 0.0.0.3
+deny ip any any
+exit
+
+no ip access-list extended OUT_DMZ
+ip access-list extended OUT_DMZ
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.3 eq 993
+permit tcp 10.0.0.0 0.0.3.255 host 2.2.2.3 eq pop3
+permit tcp any host 2.2.2.2 eq 80
+permit tcp any host 2.2.2.2 eq 443
+permit tcp any host 2.2.2.3 eq smtp
+permit icmp any host 2.2.2.2
+permit icmp any host 2.2.2.3
+deny ip any any
+exit
+
+
+no ip access-list extended IN_OUT
+ip access-list extended IN_OUT
+permit tcp any host 2.2.2.2 eq 80
+permit tcp any host 2.2.2.2 eq 443
+permit tcp any host 2.2.2.3 eq smtp
+permit tcp any host 1.1.1.1 eq 22 
+permit icmp any host 2.2.2.2
+permit icmp any host 2.2.2.3
+deny ip any any
+exit
+
+ip inspect name RETURN-TRAFFIC udp 
+ip inspect name RETURN-TRAFFIC tcp 
+ip inspect name RETURN-TRAFFIC icmp
+int f1/0
+ip inspect RETURN-TRAFFIC in
+ip access-group IN_PRIVATES in
+ip access-group OUT_PRIVATES out
+exit
+int f2/0
+ip inspect RETURN-TRAFFIC in
+ip access-group IN_PRIVATES in
+ip access-group OUT_PRIVATES out
+exit
+int f0/0
+ip inspect RETURN-TRAFFIC in
+ip access-group IN_DMZ in 
+ip access-group OUT_DMZ out
+exit
+int f3/0
+ip access-group IN_OUT in
+ip inspect RETURN-TRAFFIC in
+exit
+
+-------------------------------------- ZBPF Firewall --------------------------------------
+
+zone security PRIVATE-1
+zone security PRIVATE-2
+zone security OUT
+zone security DMZ
+exit
+int f1/0
+zone-member security PRIVATE-1
+exit
+int f2/0
+zone-member security PRIVATE-2
+exit
+int f3/0
+zone-member security OUT
+exit 
+int f0/0
+zone-member security DMZ
+exit
+
+access-list 100 permit ip any 2.2.2.0 0.0.0.252
+
+class-map type inspect match-any DMZ-SERVERS-ALLOWED
+match access-group 100
+exit
+
+class-map type inspect match-any DNS-TRAFFIC
+match protocol DNS
+exit
+
+class-map type inspect match-any HTTP-TRAFFIC 
+match protocol HTTP 
+match protocol HTTPS
+exit
+
+class-map type inspect match-any ICMP-TRAFFIC 
+match protocol ICMP
+exit
+
+class-map type inspect match-any SMTP-TRAFFIC 
+match protocol SMTP 
+exit
+
+class-map type inspect match-any USER-EMAIL-TRAFFIC
+match protocol POP3 
+match protocol IMAP
+exit
+
+policy-map type inspect PRIV-TO-DMZ-POLICY
+class type inspect DMZ-SERVERS-ALLOWED
+drop
+class type inspect HTTP-TRAFFIC
+inspect
+class type inspect ICMP-TRAFFIC
+inspect
+class type inspect USER-EMAIL-TRAFFIC
+inspect
+class type inspect SMTP-TRAFFIC 
+inspect
+class type inspect DNS-TRAFFIC 
+inspect
+exit
+exit
+
+policy-map type inspect PRIV-TO-OUT-POLICY
+class type inspect HTTP-TRAFFIC
+inspect
+class type inspect ICMP-TRAFFIC
+inspect
+class type inspect DNS-TRAFFIC 
+inspect
+exit
+exit
+
+policy-map type inspect DMZ-TO-OUT-POLICY 
+class type inspect ICMP-TRAFFIC
+inspect
+class type inspect SMTP-TRAFFIC 
+inspect
+exit
+exit
+
+
+policy-map type inspect OUT-TO-DMZ-POLICY
+class type inspect DMZ-SERVERS-ALLOWED
+drop 
+class type inspect HTTP-TRAFFIC
+inspect
+class type inspect ICMP-TRAFFIC
+inspect
+class type inspect SMTP-TRAFFIC 
+inspect
+exit
+exit
+
+
+zone-pair security PRIV-1-DMZ source PRIVATE-1 destination DMZ
+service-policy type inspect PRIV-TO-DMZ-POLICY
+exit
+
+zone-pair security PRIV-2-DMZ source PRIVATE-2 destination DMZ
+service-policy type inspect PRIV-TO-DMZ-POLICY
+exit
+
+zone-pair security PRIV-1-OUT source PRIVATE-1 destination OUT
+service-policy type inspect PRIV-TO-OUT-POLICY
+exit
+
+zone-pair security PRIV-2-OUT source PRIVATE-2 destination OUT
+service-policy type inspect PRIV-TO-OUT-POLICY
+exit
+
+zone-pair security DMZ-OUT source DMZ destination OUT 
+service-policy type inspect DMZ-TO-OUT-POLICY
+exit
+
+zone-pair security OUT-DMZ source OUT destination DMZ 
+service-policy type inspect OUT-TO-DMZ-POLICY
+exit
+
+------------------------------------ Defense against DoS Attacks ------------------------------------
+
+ICMP Flood e TCP SYN Flood
+
+------ Direct connection between victim and attacker ------
+
+victim:
+conf t 
+int f0/0
+no shut 
+ip address 192.168.1.1 255.255.255.0
+exit 
+int f0/1
+no shut
+ip address 192.168.2.1 255.255.255.0
+exit
+service tcp-small-servers 
+
+------ Defense using a ZBPF ------
+
+firewall:
+conf t 
+int f0/0
+no shut
+ip address 192.168.1.1 255.255.255.0
+exit 
+int f1/0
+no shut
+ip address 192.168.2.1 255.255.255.0
+exit
+
+victim:
+ifconfig eth0 192.168.1.2 netmask 255.255.255.0 up
+route add default gw 192.168.1.1
+python2 -m SimpleHTTPServer 80
+
+zbpf no firewall:
+#remove policies
+int f1/0
+no zone-member security OUT
+exit
+int f0/0
+no zone-member security IN 
+exit
+
+access-list 100 permit ip any 192.168.1.0 0.0.0.253
+
+class-map type inspect match-any HTTP-SERVER-ACCESS-ONLY
+match access-group 100
+exit
+
+zone security IN
+zone security OUT
+exit
+int f1/0
+zone-member security OUT
+exit
+int f0/0
+zone-member security IN 
+exit
+
+class-map type inspect match-any HTTP-TRAFFIC 
+match protocol HTTP 
+match protocol HTTPS
+exit
+
+class-map type inspect match-any ICMP-TRAFFIC 
+match protocol ICMP
+exit
+
+parameter-map type inspect PARMAP
+tcp synwait-time 3
+
+no policy-map type inspect OUT-TO-IN-POLICY
+
+policy-map type inspect OUT-TO-IN-POLICY
+class type inspect HTTP-SERVER-ACCESS-ONLY
+drop
+class type inspect ICMP-TRAFFIC
+inspect
+police rate 128000 burst 8000
+class type inspect HTTP-TRAFFIC 
+inspect PARMAP
+police rate 128000 burst 8000
+exit
+exit
+
+no zone-pair security OUT-TO-IN source OUT destination IN
+zone-pair security OUT-TO-IN source OUT destination IN
+service-policy type inspect OUT-TO-IN-POLICY
+exit
+
+-------------------------------------------------- AAA --------------------------------------------------
+
+---------- TACACS ----------
+Telnet Client:
+ip 192.168.2.2/24
+
+C7200 Administrated Router:
+conf t 
+int f1/0
+no shut
+ip address 192.168.2.1 255.255.255.0
+exit
+int f0/0
+no shut
+ip address 192.168.1.1 255.255.255.0
+exit
+username admin-router secret admin-router
+aaa new-model 
+aaa authentication login default group tacacs+ local
+tacacs server TACACS-AUTH
+address ipv4 192.168.1.2 
+single-connection
+key gns3
+exit
+aaa authorization exec default group tacacs+
+aaa authorization commands 1 default group tacacs+
+aaa accounting exec default start-stop group tacacs+
+aaa accounting network default start-stop group tacacs+
+enable secret admin-router
+exit
+
+AAA Apliance - AAA Server:
+key = saar
+
+users & pass's:
+saarAdmin:saarAdmin (privilege 15 - must have permission to use all IOS commands)
+saarShow:saarShow (privilege 4 - can only show commands)
+saarBrief:saarBrief (privilege 2 - can only use "show ip int brief")
+
+- é capaz de estar a faltar "deny .*" nas configs de comandos
+
+/etc/tacacs+/tac_plus.conf: (enable persistence)
+accounting file = /var/log/tac_plus.acct
+key = gns3
+
+user = saarAdmin {
+    name = "saarAdmin"
+    login = cleartext saarAdmin
+    member = admin
+}
+
+# Grupo admin default do ficheiro tac_plus
+
+user = saarShow {
+    name = "saarShow"
+    login = cleartext saarShow
+
+    service = exec {
+            priv-lvl = 4
+        }
+
+    cmd = show {
+            permit .*
+        }
+}
+
+user = saarBrief {
+    name = "saarBrief"
+    login = cleartext saarBrief
+
+    service = exec {
+            priv-lvl = 2
+        }
+
+    cmd = show {
+            permit ip int br
+            deny .*
+        }
+}
+
+
+
+---------- RADIUS ----------
+Telnet Client:
+ip 192.168.2.2/24
+
+C7200 Administrated Router:
+conf t 
+int f1/0
+no shut
+ip address 192.168.2.1 255.255.255.0
+exit
+int f0/0
+no shut
+ip address 192.168.1.1 255.255.255.0
+exit
+username admin-router secret admin-router
+aaa new-model 
+aaa authentication login default group radius local
+radius server RADIUS-AUTH
+address ipv4 192.168.1.2 auth-port 1812 acct-port 1813
+key gns3
+exit
+aaa authorization exec default group radius local
+aaa authorization network default group radius local
+aaa accounting exec default start-stop group radius
+aaa accounting network default start-stop group radius
+enable secret admin-router
+exit
+
+AAA Apliance - AAA Server:
+secret = gns3
+
+/etc/freeradius/3.0/users:
+saarAdmin    Cleartext-Password := "saarAdmin"
+             Reply-Message = "Welcome %{User-Name}",
+             Service-Type = Administrative-User,
+             Cisco-AVPair += "shell:priv-lvl=15"
+
+saarShow    Cleartext-Password := "saarShow"
+             Reply-Message = "Welcome %{User-Name}",
+             Service-Type = NAS-Prompt-User,
+             Cisco-AVPair += "shell:priv-lvl=4"
+
+saarBrief    Cleartext-Password := "saarBrief"
+             Reply-Message = "Welcome %{User-Name}",
+             Service-Type = NAS-Prompt-User,
+             Cisco-AVPair += "shell:priv-lvl=2"
+
+
+---------- 802.1X Authentication ----------
+Docker attacker:
+ip 192.168.1.2/24
+
+
+IOSvL2 switch:
+en
+conf t
+int vlan 1
+ip address 192.168.1.3 255.255.255.0
+no shut
+exit
+aaa new-model
+radius server 8021X-RADIUS
+address ipv4 192.168.1.4 auth-port 1812 acct-port 1813
+key gns3 
+exit 
+aaa authentication dot1x default group radius 
+dot1x system-auth-control
+interface gi0/0
+description Access Port 
+switchport mode access 
+authentication port-control auto 
+dot1x pae authenticator
+exit
+
+AAA Apliance - RADIUS Server:
+ip 192.168.1.4/24
+
+/etc/freeradius/3.0/users:
+bob:gns3
+alice:gns3
+(users default)
+
+
+-------------------------------- Additional Exercises --------------------------------
+
+
+----------------- Disable SSH Server with CBC mode -----------------
+
+Attacker Outside:
+192.168.1.2/24
+gw 192.168.1.1/24
+
+Client Inside:
+192.168.2.2/24
+gw 192.168.2.1/24
+
+ASA:
+en 
+conf t
+int gi0/0
+nameif inside 
+security-level 100
+ip address 192.168.2.1 255.255.255.0
+no shut
+exit
+int gi0/1
+nameif outside
+security-level 0
+ip address 192.168.1.1 255.255.255.0
+no shut
+exit
+policy-map global_policy
+class inspection_default
+inspect icmp
+exit 
+exit 
+enable password saar
+username saar password saar
+aaa authentication ssh console LOCAL
+crypto key generate rsa modulus 1024
+ssh 192.168.2.2 255.255.255.0 trust
+ssh cipher encryption custom aes128-ctr:aes192-ctr:aes256-ctr
+exit
+
+
+----------------- DNS Doctoring -----------------
+
+
+ASA:
+en 
+conf t
+int gi0/0
+nameif inside 
+security-level 100
+ip address 192.168.1.1 255.255.255.0
+no shut
+exit
+int gi0/1
+nameif outside
+security-level 100
+ip address 192.168.2.1 255.255.255.0
+no shut
+exit
+policy-map global_policy
+class inspection_default
+inspect icmp
+exit 
+exit 
+access-list extended OUT_to_IN permit ip any any
+access-group OUT_to_IN	in interface outside
+access-group OUT_to_IN out interface inside
+
+object network dns-server 
+host 192.168.1.4
+nat (inside,outside) source static 192.168.1.3 200.0.0.10
+
+static (inside,outside) 200.0.0.20 192.168.1.4 netmask 255.255.255.255
+
+
+exit 
+policy-map global_policy
+class inspection_default 
+inspect dns
+exit
+
+
+Internal-Client:
+ip 192.168.1.3 255.255.255.0 192.168.1.1
+ip dns 192.168.1.4
+
+External-Client:
+ip 192.168.2.2 255.255.255.0 192.168.2.1
+ip dns 192.168.1.4
+
+Web-Server:
+192.168.1.2/24
+gw 192.168.1.1
+service nginx start
+
+DNS-Server:
+nano /etc/hosts
+192.168.1.2 saar.lab saar
+
+ip 192.168.1.4 255.255.255.0
+gateway 192.168.1.1
+
+
+
+
+
+
+
+
+
+
