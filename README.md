@@ -6,13 +6,14 @@ These projects where made in Network Advanced Security and Architecture class. T
 - [Network Attacks & Mitigations](#project-1-network-attacks-and-mitigations)
 - [Firewalls & AAA](#project-2-firewalls-and-aaa)
 - [IPSec and VPNs](#project-3-ipsec-and-vpns)
+- [Snort - alerting DoS attacks](#project-4-snort-alerting-dos-attacks)
 
 ------------------------------
 # Project 1 Network Attacks and Mitigations
 Report: [`Network Attacks & Mitigations`](network_attacks_report.pdf)  
 Config File: Configurations inside the report in Annex  
   
-This report addresses some network vulnerabilities and countermeasures. It is also explained the steps to reproduce the attacks, the steps to prevent it and some theoretical concepts necessary for its understanding.  
+This report discusses some network vulnerabilities and countermeasures. It is also explained the steps to reproduce the attacks, the steps to prevent it and some theoretical concepts necessary for its understanding.  
 Topics covered:
 * CAM table overflow
 * DHCP attacks
@@ -33,7 +34,7 @@ Topics covered:
 Report: [`Firewalls & AAA`](firewalls_and_aaa_report.pdf)  
 Config file: [`Firewalls & AAA Configuration`](firewalls_and_aaa_configs.txt)  
   
-This report addresses Firewalls and AAA which stands for Authentication, Authorization and Accounting (basically, is a framework used to control who is permitted to use the network resources - authentication - what they are authorized to do - authorization - and capture the actions performed while accessing the network - accounting).  
+This report discusses Firewalls and AAA which stands for Authentication, Authorization and Accounting (basically, is a framework used to control who is permitted to use the network resources - authentication - what they are authorized to do - authorization - and capture the actions performed while accessing the network - accounting).  
 Topics covered:
 * Classical Firewalls
 * Zone Based Policy Firewalls
@@ -49,7 +50,7 @@ Topics covered:
 Report: [`IPSec & VPNs`](ipsec_and_vpns_report.pdf)  
 Config File: Configurations inside the report in Annex  
   
-This report addresses IPSec and VPNs, where it is analyzed different VPNs and their configurations.  
+This report discusses IPSec and VPNs, where it is analyzed different VPNs and their configurations.  
 Topics covered:
 * Tunneling
   * GRE
@@ -67,3 +68,21 @@ Topics covered:
   * Attacking HSRP
   * GLBP
 * VRFs and MPLS VPNs
+
+------------------------------
+# Project 4 Snort alerting DoS attacks
+Report: [`Snort - alerting DoS attacks`](snort_alerting_dos_attacks_report.pdf)  
+Config File: Configurations inside the report in Annex  
+
+This report discusses Snort as an NIDS and shows the alert rules that can be configured so that different DoS attacks are detected, and gives a python script to execute each attack.  
+Topics covered:
+* ICMP flood
+* SYN flood
+* Ping of death
+* Land attack
+* HTTP flooding
+* TCP reset attack
+* Christmas tree attack
+* UDP flood
+* DNS flood
+* Smurf attack
